@@ -1,7 +1,7 @@
 
 # Epidemic Dynamics & Forecasting
 
-### A Comparative Study of Mechanistic, Statistical, Machine Learning, and Physics-Informed Models for COVID-19 Forecasting in India
+### A Comparative Study of Mechanistic, Statistical, and Machine Learning Models for COVID-19 Forecasting in India
 
 ## 1. Project Overview
 
@@ -12,20 +12,20 @@ Forecasting epidemic trends is challenging because disease transmission changes 
 - **SIR:** Mechanistic epidemiological modelling.
 - **ARIMA:** Statistical time-series forecasting.
 - **XGBoost:** Gradient-boosted machine learning.
-- **PINN-SEIRS:** Physics-informed deep learning.
+- **LSTM:** Deep learning for sequential time-series forecasting.
 
 The project investigates predictive accuracy, generalization to a later epidemic wave, interpretability, and the limitations of different modelling assumptions.
 
 ## 2. Project Objectives
 
-The primary objective is to evaluate how mechanistic, statistical, machine-learning, and physics-informed approaches forecast COVID-19 cases under changing epidemic conditions.
+The primary objective is to evaluate how mechanistic, statistical, and machine-learning approaches forecast COVID-19 cases under changing epidemic conditions.
 
 Specific objectives:
 
 1. Model transmission and recovery dynamics using epidemiological differential equations.
 2. Capture temporal dependencies using statistical forecasting.
 3. Learn nonlinear relationships from historical case counts using machine learning.
-4. Investigate whether incorporating epidemiological knowledge into neural networks improves forecasting.
+4. Learn sequential temporal patterns in historical case counts using an LSTM neural network.
 5. Compare models using MAE, RMSE, and R² score on a common test period.
 6. Analyze forecasting errors and the ability of models to capture epidemic surges.
 
@@ -63,7 +63,7 @@ The primary forecasting target is `new_cases_smoothed`, which reduces short-term
 - Filter the dataset to the study period.
 - Inspect and handle missing values.
 - Create lagged and rolling features for XGBoost.
-- Prepare epidemiological states for SIR and PINN-SEIRS.
+- Prepare chronological sequences for the LSTM model.
 - Avoid data leakage by fitting models and preprocessing steps using training data only.
 
 ## 4. Experimental Design
@@ -220,59 +220,36 @@ It can learn nonlinear relationships between recent case counts and temporal fea
 
 It does not inherently enforce epidemiological laws. Its performance depends on feature quality and how closely future conditions resemble the training data.
 
-### 5.4 PINN-SEIRS — Physics-Informed Neural Network with SEIRS Dynamics
+### 5.4 LSTM — Long Short-Term Memory Network
 
-**Category:** Physics-informed deep learning
+**Category:** Deep learning for time-series forecasting
 
-The SEIRS model represents four compartments:
+LSTM is a recurrent neural-network architecture designed to learn temporal dependencies in sequential data. Its gated memory mechanism helps it retain useful information across multiple time steps.
 
-- S: Susceptible individuals.
-- E: Exposed individuals who are not yet infectious.
-- I: Infectious individuals.
-- R: Recovered individuals.
-
-A standard SEIRS system is:
-
-dS/dt = -βSI/N + ωR
-
-dE/dt = βSI/N - σE
-
-dI/dt = σE - γI
-
-dR/dt = γI - ωR
-
-Where:
-
-- β: Transmission rate.
-- σ: Rate at which exposed individuals become infectious.
-- γ: Recovery rate.
-- ω: Rate of waning immunity.
-- N: Total population.
+For this project, the model uses the previous 28 days of `new_cases_smoothed` to predict the next day's case count. The target is scaled using a scaler fitted only on the training period.
 
 #### Methodology
 
-1. Define the SEIRS compartments, parameters, and initial conditions.
-2. Construct a neural network representing time-dependent epidemic states.
-3. Use automatic differentiation to calculate time derivatives.
-4. Calculate residuals of the SEIRS differential equations.
-5. Combine data-fitting error, physics residuals, and initial-condition constraints into a loss function.
-6. Train the network using training observations only.
-7. Convert predicted epidemic states into expected reported cases using an observation model.
-8. Evaluate predictions using MAE, RMSE, and R².
+1. Sort India's OWID observations chronologically and select data through March 31, 2022.
+2. Use `new_cases_smoothed` as the primary target, handling missing observations carefully.
+3. Split the data at September 30, 2021: observations up to this date are used for training, and October 1, 2021–March 31, 2022 is reserved for testing.
+4. Fit the feature scaler using training observations only.
+5. Create supervised sequences using the previous 28 days to predict the next day.
+6. Train a stacked LSTM network with dropout and a dense output layer; use a chronological validation subset and early stopping.
+7. Generate predictions for the test period and inverse-transform them to the original case-count scale.
+8. Evaluate predictions using MAE, RMSE, and R², and inspect forecast plots and residuals.
 
-A general PINN loss function is:
+#### Forecasting strategy
 
-L = λ_data L_data + λ_physics L_physics + λ_init L_initial
+The current implementation uses **rolling one-step-ahead evaluation**: each test prediction uses the preceding 28 observed values, which may include observations from earlier dates in the test period. This evaluates daily predictions as new observations become available; it is not a single recursive six-month forecast made on September 30, 2021.
 
-#### Why PINN-SEIRS?
+#### Why LSTM?
 
-PINN-SEIRS investigates whether epidemiological knowledge can guide neural-network learning while preserving flexibility to fit observed data.
+LSTM can learn nonlinear temporal patterns from sequential case-count data without requiring explicit epidemiological differential equations. It provides a deep-learning comparison with the mechanistic SIR model, statistical ARIMA, and feature-based XGBoost.
 
 #### Limitations
 
-PINNs can be computationally expensive and sensitive to initialization, loss weights, and parameter identifiability. Reported cases alone may not uniquely determine the latent exposed and infectious populations.
-
-A physics-informed model is not automatically more accurate; its performance must be established through evaluation.
+LSTM requires careful scaling, sequence construction, and validation to avoid data leakage. It can overfit, is sensitive to architecture and hyperparameters, and may struggle when epidemic dynamics change sharply from the training period. A univariate LSTM also does not explicitly model transmission, immunity, vaccination, or other epidemiological mechanisms.
 
 ## 6. Results
 
@@ -284,12 +261,12 @@ All four models must be evaluated on the common test period before drawing final
 
 ### Final Evaluation Results
 
-| Model | MAE | RMSE | R² Score | Status |
-|---|---:|---:|---:|---|
-| SIR | 264,265.89 | 431,658.31 | _ | Rerun on final split |
-| ARIMA | 79589.79 | 120638.56 | _ | Rerun on final split |
-| XGBoost | 18474.4 | 41436.4 | 0.76 | Final evaluation pending |
-| PINN-SEIRS | TBD | TBD | TBD | Implementation and evaluation pending |
+| Model   | MAE         | RMSE        | R² Score |
+|---------|------------:|------------:|---------:|
+| SIR     | 264,265.89  | 431,658.31  | _        |
+| ARIMA   | 79,589.79   | 120,638.56  | _        |
+| XGBoost | 18,474.40   | 41,436.40   | 0.76     |
+| LSTM    | 18,890.62   | 36,858.31   | 0.81     |
 
 *TBD indicates that the final metric has not yet been confirmed.*
 
@@ -301,23 +278,23 @@ The final analysis will investigate:
 - Which model achieves the highest R²?
 - Which models capture the timing and magnitude of major surges?
 - How does performance change with forecast horizon?
-- Does PINN-SEIRS produce epidemiologically plausible trajectories?
+- How well does LSTM capture the timing and magnitude of major surges?
 - How much error accumulates during recursive forecasting?
 
 Rankings must be based on measured results, not assumptions about a model's capabilities.
 
 ## 7. Final Model Comparison
 
-| Criterion | SIR | ARIMA | XGBoost | PINN-SEIRS |
+| Criterion | SIR | ARIMA | XGBoost | LSTM |
 |---|---|---|---|---|
-| Approach | Mechanistic | Statistical | Machine learning | Physics-informed deep learning |
+| Approach | Mechanistic | Statistical | Machine learning | Deep learning (sequence model) |
 | Learns from historical data | Parameter fitting | Yes | Yes | Yes |
-| Encodes epidemic dynamics | Explicitly | No | No, unless added externally | Through differential-equation constraints |
+| Encodes epidemic dynamics | Explicitly | No | No, unless added externally | No, unless epidemiological features or constraints are added |
 | Captures nonlinear relationships | Through equations | Limited by specification | Yes | Yes |
-| Feature engineering | Low | Low to moderate | Moderate to high | Architecture-dependent |
+| Feature engineering | Low | Low to moderate | Moderate to high | Sequence-window design and scaling |
 | Interpretability | Epidemiological parameters | Statistical structure | Feature importance and tree behaviour | Depends on states, parameters, and loss |
-| Main strength | Mechanistic interpretation | Time-series baseline | Flexible nonlinear prediction | Combines data fitting with physical constraints |
-| Main limitation | Simplified assumptions | Vulnerable to structural changes | Feature and distribution dependence | Complex training and parameter identification |
+| Main strength | Mechanistic interpretation | Time-series baseline | Flexible nonlinear prediction | Learns temporal dependencies from sequential observations |
+| Main limitation | Simplified assumptions | Vulnerable to structural changes | Feature and distribution dependence | Data-hungry, tuning-sensitive, and vulnerable to distribution shifts |
 | Predictive performance | To be measured | To be measured | To be measured | To be measured |
 
 This table compares methodological characteristics. Empirical rankings will be added after the common evaluation is complete.
@@ -328,25 +305,25 @@ The four models represent different perspectives on epidemic forecasting.
 
 SIR provides an interpretable explanation of transmission and recovery but relies on simplified assumptions. ARIMA captures historical temporal patterns but can struggle when the underlying process changes. XGBoost learns nonlinear relationships from engineered features but remains dependent on the information available in its training data.
 
-PINN-SEIRS investigates whether embedding epidemiological differential equations into neural-network training can improve the balance between fitting observations and maintaining plausible epidemic dynamics.
+LSTM investigates whether a recurrent neural network can learn useful temporal dependencies from historical case counts and improve predictions over the test period.
 
 The Omicron-associated period provides a challenging test because the relationship between past cases and future outcomes may differ substantially from earlier periods. Changes in variants, immunity, testing, interventions, and reporting can all affect model performance.
 
 **Forecast accuracy and epidemiological plausibility are not the same thing.** A model may accurately predict reported cases without recovering the true infectious population, while a mechanistic model may produce plausible compartment dynamics but poor reported-case forecasts.
 
-Results should therefore be interpreted using MAE, RMSE, R², forecast plots, residual analysis, peak timing, and the behaviour of latent states.
+Results should therefore be interpreted using MAE, RMSE, R², forecast plots, residual analysis, and peak timing.
 
 The study also has limitations. Reported cases are an imperfect measure of infections, latent states may be difficult to identify, and one test period cannot establish that a model will generalize to every future outbreak.
 
 ## 9. Conclusion
 
-Epidemic Dynamics & Forecasting provides a comparative framework for studying COVID-19 forecasting through mechanistic epidemiology, statistical time-series analysis, machine learning, and physics-informed deep learning.
+Epidemic Dynamics & Forecasting provides a comparative framework for studying COVID-19 forecasting through mechanistic epidemiology, statistical time-series analysis, and machine learning, including recurrent neural networks.
 
 By evaluating the four approaches on a later epidemic period, the project aims to determine how modelling assumptions affect predictive accuracy, generalization, and interpretability.
 
 The main contribution is not simply identifying the model with the lowest error. It is understanding the trade-offs between data-driven flexibility and epidemiological structure, and identifying the conditions under which each approach succeeds or fails.
 
-The final conclusion will be based on measured results from the common test set, including whether PINN-SEIRS provides meaningful benefits over the simpler baselines.
+The final conclusion will be based on measured results from the common test set, including whether LSTM provides meaningful benefits over the simpler baselines.
 
 ## 10. Future Improvements
 
@@ -354,7 +331,7 @@ The final conclusion will be based on measured results from the common test set,
 - Incorporate vaccination, testing, or intervention indicators where reliable data are available.
 - Estimate uncertainty intervals alongside point forecasts.
 - Compare short-term and longer-term forecasting horizons.
-- Test PINN-SEIRS sensitivity to physics-loss weights and epidemiological parameters.
+- Test LSTM sensitivity to sequence length, architecture, dropout, and training settings.
 - Investigate improved observation models connecting latent epidemic states to reported cases.
 
-**Project Status:** SIR and ARIMA have been implemented in earlier experiments, and XGBoost has been implemented. PINN-SEIRS is planned as the fourth model. Final comparative results and conclusions will be updated after all models are evaluated under the same experimental protocol.
+**Project Status:** SIR and ARIMA have been implemented in earlier experiments, and XGBoost has been implemented. The LSTM notebook is prepared for the fourth model; its final metrics should be added after running it and checking that all models use the same target, dates, and evaluation protocol.
