@@ -263,8 +263,8 @@ All four models must be evaluated on the common test period before drawing final
 
 | Model   | MAE         | RMSE        | R² Score |
 |---------|------------:|------------:|---------:|
-| SIR     | 264,265.89  | 431,658.31  | _        |
-| ARIMA   | 79,589.79   | 120,638.56  | _        |
+| SIR     | 107,841.86  | 140,854.31  | -1.7       |
+| ARIMA   | 50,012.00   | 98,731.12  | -0.364        |
 | XGBoost | 18,474.40   | 41,436.40   | 0.76     |
 | LSTM    | 18,890.62   | 36,858.31   | 0.81     |
 
